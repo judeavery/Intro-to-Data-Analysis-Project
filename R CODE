@@ -1,0 +1,401 @@
+#PROJECT
+
+library(dplyr)
+
+file1 <- read.csv("/Users/mcjudeboss22/Desktop/NetflixTop10.csv",
+                             header = TRUE,
+                             sep = ",")
+file2 <- read.csv("/Users/mcjudeboss22/Desktop/NetflixTitles.csv",
+                   header = TRUE,
+                   sep = ",")
+
+# Perform the merge based on the "Title" column
+merged_data <- merge(file1, file2, by.x = "Title", by.y = "title", all.x = TRUE)
+
+# Save the merged data to a new CSV file
+write.csv(merged_data, "MergedNetflixData.csv", row.names = FALSE)
+
+#####################################################
+# Load the necessary library (if needed)
+library(dplyr)
+
+# Load your Netflix merged dataset
+data <- read.csv("MergedNetflixData.csv")
+
+# Group by Title and then keep the entry with the maximum "Days.In.Top.10" value
+cleaned_data <- data %>%
+  group_by(Title) %>%
+  slice_max(Days.In.Top.10, with_ties = FALSE) %>%
+  ungroup()
+
+# Reset row names
+rownames(cleaned_data) <- NULL
+
+# Save the filtered data to a new CSV file
+write.csv(cleaned_data, "CleanedNetflixData.csv", row.names = FALSE)
+
+#####################################################
+# Assuming you've already loaded dplyr
+# library(dplyr) 
+
+# Filter out rows where "show_id" is NA or empty
+filtered_data <- cleaned_data %>%
+  filter(!is.na(show_id) & show_id != "")
+
+# If you want to save the filtered data to a new CSV file
+write.csv(filtered_data, "FilteredNetflixData.csv", row.names = FALSE)
+
+
+
+
+
+
+## Distribution of Types
+# Load necessary libraries
+library(ggplot2)
+
+# Read the CSV data
+netflix_data <- read.csv("FilteredNetflixData.csv", header=TRUE, stringsAsFactors=FALSE)  # Fixed the filename
+
+# Check the first few rows of the data to ensure it's read correctly
+head(netflix_data)
+
+# Generate the bar graph for the 'Type' column
+ggplot(netflix_data, aes(x=Type)) + 
+  geom_bar(fill="blue2", color="black") +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.5) +  # This line adds the count numbers
+  labs(title="Distribution of Types on Netflix", x="Type", y="Count") +
+  theme_minimal()
+
+
+
+#maybe, also this is based on movies in the top 10 right? is there anyway to correalte to like
+#how long they been in the top 10? idk 
+library(ggplot2)
+library(dplyr)
+
+# Read your data
+netflix_data <- read.csv("FilteredNetflixData.csv", header = TRUE, stringsAsFactors = FALSE)
+
+# Calculate the percentage for each type using dplyr
+netflix_data <- netflix_data %>%
+  group_by(Type) %>%
+  summarize(count = n()) %>%
+  mutate(Percentage = (count / sum(count)) * 100)
+
+# Create the donut chart with percentage labels and customize text properties
+ggplot(netflix_data, aes(x = 1, y = Percentage, fill = Type)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = paste0(Type, "\n", round(Percentage, 1), "%")), position = position_stack(vjust = 0.5),
+            size = 3, family = "Arial", color = "black") +  # Customize text properties
+  labs(title = "Distribution of Types on Netflix", fill = "Type") +
+  theme_minimal() +
+  theme_void() +
+  theme(
+    text = element_text(family = "Arial", size = 12, color = "black"))  # Customize font and size
+
+
+
+
+
+
+
+
+
+## What is the most frequent duration for movies or tv shows? (Shorter Movies, Longer Movies, # of Seasons) 
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(gridExtra) # Load gridExtra for arranging plots
+
+netflix_titles <- read.csv("CleanedNetflixData.csv")
+
+# Create a function to assign durations to ranges for movies
+assign_duration_range_movies <- function(duration) {
+  case_when(
+    is.na(duration) ~ "Unknown",
+    as.numeric(gsub(" min", "", duration)) <= 50 ~ "0-50 min",
+    as.numeric(gsub(" min", "", duration)) <= 100 ~ "51-100 min",
+    as.numeric(gsub(" min", "", duration)) <= 150 ~ "101-150 min",
+    as.numeric(gsub(" min", "", duration)) <= 200 ~ "151-200 min",
+    as.numeric(gsub(" min", "", duration)) <= 250 ~ "201-250 min",
+    as.numeric(gsub(" min", "", duration)) > 250 ~ "250+ min"  # Use ">" instead of "TRUE"
+  )
+}
+
+# Filter for movies
+movies <- netflix_titles %>%
+  filter(type == "Movie")
+
+# Apply the duration range function to the data for movies
+movies <- movies %>%
+  mutate(DurationGroup = assign_duration_range_movies(duration))
+
+# Create a factor with levels for the "DurationGroup" column for movies
+movies$DurationGroup <- factor(movies$DurationGroup, levels = c(
+  "0-50 min", "51-100 min", "101-150 min", "151-200 min", "201-250 min", "Unknown"
+))
+
+# Create a bar chart to visualize movies grouped by duration
+movie_plot <- ggplot(movies, aes(x = DurationGroup)) +
+  geom_bar(stat = "count", fill = "orange2") +
+  labs(title = "Movies by Duration",
+       x = "Duration",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.background = element_rect(fill = "grey"))
+
+# Filter for TV Shows
+tv_shows <- netflix_titles %>%
+  filter(type == "TV Show")
+
+# Create a new column to categorize the number of seasons for TV shows
+tv_shows <- tv_shows %>%
+  mutate(SeasonsGroup = case_when(
+    duration == "1 Season" ~ "1 Season",
+    duration == "2 Seasons" ~ "2 Seasons",
+    duration == "3 Seasons" ~ "3 Seasons",
+    duration == "4 Seasons" ~ "4 Seasons",
+    duration == "5 Seasons" ~ "5 Seasons",
+    duration == "6 Seasons" ~ "6 Seasons",
+    duration == "7 Seasons" ~ "7 Seasons",
+    duration == "8 Seasons" ~ "8 Seasons",
+    duration == "9 Seasons" ~ "9 Seasons",
+    duration == "10 Seasons" ~ "10 Seasons",
+    TRUE ~ "11+ Seasons"
+  ))
+
+# Create a factor with levels for the "SeasonsGroup" column to order it numerically for TV shows
+tv_shows$SeasonsGroup <- factor(tv_shows$SeasonsGroup, levels = c("1 Season", "2 Seasons", "3 Seasons", "4 Seasons", "5 Seasons", "6 Seasons", "7 Seasons", "8 Seasons", "9 Seasons", "10 Seasons", "11+ Seasons"))
+
+# Create a bar chart to visualize TV shows grouped by the number of seasons
+library(ggplot2)
+
+tv_show_plot <- ggplot(tv_shows, aes(x = SeasonsGroup)) +
+  geom_bar(stat = "count", fill = "darkgreen") +
+  labs(title = "TV Shows by Duration",
+       x = "Number of Seasons",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.background = element_rect(fill = "grey"))  # Change the background color
+
+print(tv_show_plot)
+
+
+# Arrange both plots in a grid
+grid.arrange(movie_plot, tv_show_plot, ncol = 2)
+
+
+
+
+
+
+
+# Out of all of our results, how many were Netflix exclusive and how many not Netflix exclusive or null? 
+
+# Load the necessary library
+library(ggplot2)
+
+# Read the CSV data
+netflix_data <- read.csv("FilteredNetflixData.csv", header=TRUE, stringsAsFactors=FALSE)
+
+# Map "Yes" to TRUE and anything else to FALSE for the Netflix.Exclusive column
+netflix_data$Netflix.Exclusive <- netflix_data$Netflix.Exclusive == "Yes"
+
+# Define the desired order of 'Type'
+type_levels <- c("Movie", "TV Show", "Stand-Up Comedy")
+
+# Ensure that all levels are present in the data, even if they have no entries
+netflix_data$Type <- factor(netflix_data$Type, levels = type_levels)
+
+# Create a bar graph showing the count of each type by Netflix exclusivity
+ggplot(netflix_data, aes(x=Type, fill=Netflix.Exclusive)) +
+  geom_bar(position="dodge") +
+  scale_fill_manual(values=c("orange", "springgreen"), labels=c("Non-Exclusive", "Exclusive")) +
+  labs(title="Distribution of Netflix Titles by Type and Exclusivity",
+       x="Type of Title",
+       y="Count",
+       fill="Netflix Exclusive") +
+  theme_minimal() +
+  theme(legend.position="bottom")
+
+# Display the plot
+ggsave("NetflixExclusivityByTypeOrdered.png", width = 10, height = 8, dpi = 300)
+
+
+#stacked bar plot? - i think it looks better imo
+ggplot(netflix_data, aes(x = Type, fill = Netflix.Exclusive)) +
+  geom_bar(position = "stack") +
+  scale_fill_manual(values = c("orange", "springgreen"), labels = c("Non-Exclusive", "Exclusive")) +
+  labs(title = "Distribution of Netflix Titles by Type and Exclusivity", x = "Type of Title", y = "Count", fill = "Netflix Exclusive") +
+  theme_minimal()
+
+
+
+
+
+
+# How many movies were in top 50 for each year?  Did Covid have an impact based on what we can see? 
+
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Read the CSV data
+netflix_data <- read.csv("FilteredNetflixData.csv", header=TRUE, stringsAsFactors=FALSE)
+
+# Filter rows where Rank is 50 or less, extract year and count movies
+top50_each_year <- netflix_data %>%
+  filter(Rank <= 10) %>%
+  mutate(Year = year(as.Date(As.of, format="%Y-%m-%d"))) %>%
+  group_by(Year) %>%
+  summarise(Number_of_Movies = n())
+
+# Plot the data with shades of blue
+ggplot(top50_each_year, aes(x=Year, y=Number_of_Movies, fill=as.factor(Year))) + 
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Number of Movies in Weekly Top 10 by Year",
+       x="Year", 
+       y="Number of Movies") +
+  scale_fill_manual(name="Year", values=c("deepskyblue", "dodgerblue", "darkblue")) +
+  theme_minimal() +
+  geom_text(aes(label=Number_of_Movies), vjust=-0.5, position=position_dodge(0.9))
+
+# Read the CSV data
+netflix_data <- read.csv("FilteredNetflixData.csv", header=TRUE, stringsAsFactors=FALSE)
+
+# Get the highest rank
+lowest_rank <- max(netflix_data$Rank, na.rm = TRUE)
+
+# Display the highest rank
+print(lowest_rank)
+
+
+# Top 5 TV Shows for each Year based on Days in Top 10 Ranking
+
+library(dplyr)
+library(readr)
+library(lubridate)
+
+# Read the data from the CSV file
+netflix_data <- read_csv("FilteredNetflixData.csv")
+
+# Convert the 'As.of' column to a Date format if it's not already, and extract the year
+netflix_data <- netflix_data %>%
+  mutate(Year = year(as.Date(As.of)))
+
+# Filter for TV shows only
+tv_shows <- netflix_data %>%
+  filter(Type == "TV Show")
+
+# Now find the top 5 TV shows for 2020, 2021, and 2022 based on Days.In.Top.10
+top_tv_shows_by_year <- tv_shows %>%
+  group_by(Year) %>%
+  slice_max(order_by = Days.In.Top.10, n = 5) %>%
+  ungroup()  # Ungroup to remove the grouping
+
+# The result is a data frame with the top 5 TV shows for each year
+print(top_tv_shows_by_year)
+
+# Optional: Write the result to a new CSV file if needed
+write_csv(top_tv_shows_by_year, "Top5TVShowsEachYear.csv")
+
+
+# Top 5 Movies for each Year based on Days in Top 10 Ranking
+
+library(dplyr)
+library(readr)
+library(lubridate)
+
+# Read the data from the CSV file
+netflix_data <- read.csv("FilteredNetflixData.csv")
+
+# Convert the 'As.of' column to a Date format if it's not already, and extract the year
+netflix_data <- netflix_data %>%
+  mutate(Year = year(as.Date(As.of)))
+
+# Filter for Movies only
+movies <- netflix_data %>%
+  filter(Type == "Movie")
+
+# Now find the top 5 movies for 2020, 2021, and 2022 based on Days.In.Top.10
+top_movies_by_year <- movies %>%
+  group_by(Year) %>%
+  slice_max(order_by = Days.In.Top.10, n = 5) %>%
+  ungroup()  # Ungroup to remove the grouping
+
+# The result is a data frame with the top 5 movies for each year
+print(top_movies_by_year)
+
+# Optional: Write the result to a new CSV file if needed
+write_csv(top_movies_by_year, "Top5MoviesEachYear.csv")
+
+
+
+#Find the top 5 movies for 2020 and 2021 based on Days.In.Top.10
+top_movies_by_year <- movies %>%
+  group_by(Year) %>%
+  slice_max(order_by = Days.In.Top.10, n = 5) %>%
+  ungroup()  # Ungroup to remove the grouping
+
+# Visualize the data
+ggplot(top_movies_by_year, aes(x = reorder(Title, Days.In.Top.10), y = Days.In.Top.10, fill = Title)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ Year, scales = "free_x") +  # Separate the data by year
+  coord_flip() +  # Flip the coordinates to make horizontal bars
+  labs(title = "Top 5 Movies for Each Year Based on Days in Top 10",
+       x = "Movie",
+       y = "Days in Top 10") +
+  theme_minimal() +
+  theme(legend.position = "none",  # Remove legend since color represents movie titles
+        strip.background = element_blank(),  # Remove panel background
+        axis.text.x = element_text(size = 8))  # Adjust text size for better clarity
+
+
+
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+
+# Assuming your movies dataset is named 'movies'
+# Filter and plot the top 5 movies for 2020
+top_movies_2020 <- movies %>% 
+  filter(Year == 2020) %>% 
+  arrange(desc(Days.In.Top.10)) %>% 
+  head(5)
+
+plot_2020 <- ggplot(top_movies_2020, aes(x = reorder(Title, Days.In.Top.10), y = Days.In.Top.10, fill = Title)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 5 Movies in 2020",
+       x = "Movie",
+       y = "Days in Top 10") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        axis.text.x = element_text(size = 8))
+
+# Filter and plot the top 5 movies for 2021
+top_movies_2021 <- movies %>% 
+  filter(Year == 2021) %>% 
+  arrange(desc(Days.In.Top.10)) %>% 
+  head(5)
+
+plot_2021 <- ggplot(top_movies_2021, aes(x = reorder(Title, Days.In.Top.10), y = Days.In.Top.10, fill = Title)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 5 Movies in 2021",
+       x = "Movie",
+       y = "Days in Top 10") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        axis.text.x = element_text(size = 8))
+
+# Display the individual plots for each year
+grid.arrange(plot_2020, plot_2021, ncol = 2)
